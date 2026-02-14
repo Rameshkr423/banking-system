@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+pydantic
+python-dotenv
+google-cloud-pubsub
+google-cloud-logging
+pydantic-settings
+email-validator
+
