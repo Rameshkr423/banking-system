@@ -3,6 +3,7 @@ from app.api.routes import user
 from app.api.routes import transaction
 from app.core.config import settings
 from app.db.init_db import init_db
+from app.api.routes import simulation
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -24,3 +25,4 @@ def health_check():
 # Routers
 app.include_router(user.router, prefix="/users", tags=["Users"])
 app.include_router(transaction.router, prefix="/transactions", tags=["Transactions"])
+app.include_router(simulation.router, prefix="/transactions", tags=["Simulation"])
