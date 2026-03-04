@@ -1,76 +1,105 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func, case
 from fastapi import HTTPException
 from decimal import Decimal
 import uuid
 
-from app.models.transaction import Transaction
-from app.models.ledger import LedgerEntry
+from app.models.transaction import (
+    Transaction,
+    TransactionType,
+    TransactionStatus,
+)
+from app.models.ledger import LedgerEntry, EntryType
 from app.models.account import Account
 
-from sqlalchemy import func
-from app.models.ledger import LedgerEntry
 
+# ---------------------------------------------------------
+# Helper: Get Current Balance (Single Query Optimized)
+# ---------------------------------------------------------
+
+def get_balance(db: Session, account_id: int) -> Decimal:
+    balance = db.query(
+        func.coalesce(
+            func.sum(
+                case(
+                    (LedgerEntry.entry_type == EntryType.credit, LedgerEntry.amount),
+                    else_=-LedgerEntry.amount
+                )
+            ), 0
+        )
+    ).filter(
+        LedgerEntry.account_id == account_id
+    ).scalar()
+
+    return balance or Decimal("0.00")
+
+
+# ---------------------------------------------------------
+# Deposit
+# ---------------------------------------------------------
 
 def deposit(db: Session, account_id: int, amount: Decimal):
 
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Invalid amount")
 
-    account = db.query(Account).filter(Account.id == account_id).first()
+    # Lock account row
+    account = (
+        db.query(Account)
+        .filter(Account.id == account_id)
+        .with_for_update()
+        .first()
+    )
 
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    reference_id = str(uuid.uuid4())
-
     transaction = Transaction(
-        reference_id=reference_id,
-        account_id=account_id,
-        type="deposit",
+        reference_id=str(uuid.uuid4()),
+        type=TransactionType.deposit,
         amount=amount,
-        status="completed"
+        status=TransactionStatus.pending,
+        to_account_id=account_id
     )
 
     db.add(transaction)
     db.flush()
 
+    current_balance = get_balance(db, account_id)
+    new_balance = current_balance + amount
+
     ledger_entry = LedgerEntry(
         transaction_id=transaction.id,
         account_id=account_id,
-        entry_type="credit",
-        amount=amount
+        counterparty_account_id=None,
+        entry_type=EntryType.credit,
+        amount=amount,
+        running_balance=new_balance,
+        description="Cash Deposit"
     )
 
     db.add(ledger_entry)
 
-    db.commit()
+    transaction.status = TransactionStatus.success
 
     return transaction
 
 
-def get_balance(db: Session, account_id: int):
-
-    credits = db.query(func.coalesce(func.sum(LedgerEntry.amount), 0))\
-        .filter(
-            LedgerEntry.account_id == account_id,
-            LedgerEntry.entry_type == "credit"
-        ).scalar()
-
-    debits = db.query(func.coalesce(func.sum(LedgerEntry.amount), 0))\
-        .filter(
-            LedgerEntry.account_id == account_id,
-            LedgerEntry.entry_type == "debit"
-        ).scalar()
-
-    return credits - debits
-
+# ---------------------------------------------------------
+# Withdraw
+# ---------------------------------------------------------
 
 def withdraw(db: Session, account_id: int, amount: Decimal):
 
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Invalid amount")
 
-    account = db.query(Account).filter(Account.id == account_id).first()
+    account = (
+        db.query(Account)
+        .filter(Account.id == account_id)
+        .with_for_update()
+        .first()
+    )
 
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
@@ -80,40 +109,47 @@ def withdraw(db: Session, account_id: int, amount: Decimal):
     if current_balance < amount:
         raise HTTPException(status_code=400, detail="Insufficient balance")
 
-    reference_id = str(uuid.uuid4())
-
     transaction = Transaction(
-        reference_id=reference_id,
-        account_id=account_id,
-        type="withdraw",
+        reference_id=str(uuid.uuid4()),
+        type=TransactionType.withdraw,
         amount=amount,
-        status="completed"
+        status=TransactionStatus.pending,
+        from_account_id=account_id
     )
 
     db.add(transaction)
     db.flush()
 
+    new_balance = current_balance - amount
+
     ledger_entry = LedgerEntry(
         transaction_id=transaction.id,
         account_id=account_id,
-        entry_type="debit",
-        amount=amount
+        counterparty_account_id=None,
+        entry_type=EntryType.debit,
+        amount=amount,
+        running_balance=new_balance,
+        description="Cash Withdrawal"
     )
 
     db.add(ledger_entry)
 
-    db.commit()
+    transaction.status = TransactionStatus.success
 
     return transaction
 
-def transfer(db: Session, from_account_id: int, to_account_id: int, amount: Decimal, idempotency_key: str):
 
-    existing_tx = db.query(Transaction).filter(
-        Transaction.idempotency_key == idempotency_key
-    ).first()
+# ---------------------------------------------------------
+# Transfer
+# ---------------------------------------------------------
 
-    if existing_tx:
-        return existing_tx
+def transfer(
+    db: Session,
+    from_account_id: int,
+    to_account_id: int,
+    amount: Decimal,
+    idempotency_key: str
+):
 
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Invalid amount")
@@ -121,46 +157,85 @@ def transfer(db: Session, from_account_id: int, to_account_id: int, amount: Deci
     if from_account_id == to_account_id:
         raise HTTPException(status_code=400, detail="Cannot transfer to same account")
 
-    from_account = db.query(Account).filter(Account.id == from_account_id).first()
-    to_account = db.query(Account).filter(Account.id == to_account_id).first()
+    # Idempotency protection
+    existing_tx = db.query(Transaction).filter(
+        Transaction.idempotency_key == idempotency_key
+    ).first()
+
+    if existing_tx:
+        return existing_tx
+
+    # Lock accounts to prevent race condition
+    from_account = (
+        db.query(Account)
+        .filter(Account.id == from_account_id)
+        .with_for_update()
+        .first()
+    )
+
+    to_account = (
+        db.query(Account)
+        .filter(Account.id == to_account_id)
+        .with_for_update()
+        .first()
+    )
 
     if not from_account or not to_account:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    if get_balance(db, from_account_id) < amount:
+    from_balance = get_balance(db, from_account_id)
+
+    if from_balance < amount:
         raise HTTPException(status_code=400, detail="Insufficient balance")
 
-    reference_id = str(uuid.uuid4())
-
     transaction = Transaction(
-        reference_id=reference_id,
-        account_id=from_account_id,
-        type="transfer",
+        reference_id=str(uuid.uuid4()),
+        type=TransactionType.transfer,
         amount=amount,
-        status="completed",
+        status=TransactionStatus.pending,
+        from_account_id=from_account_id,
+        to_account_id=to_account_id,
         idempotency_key=idempotency_key
     )
 
     db.add(transaction)
     db.flush()
 
+    # -----------------------------
+    # Debit Entry
+    # -----------------------------
+    new_from_balance = from_balance - amount
+
     debit_entry = LedgerEntry(
         transaction_id=transaction.id,
         account_id=from_account_id,
-        entry_type="debit",
-        amount=amount
+        counterparty_account_id=to_account_id,
+        entry_type=EntryType.debit,
+        amount=amount,
+        running_balance=new_from_balance,
+        description=f"Transfer to A/C {to_account.account_number}"
     )
+
+    db.add(debit_entry)
+
+    # -----------------------------
+    # Credit Entry
+    # -----------------------------
+    to_balance = get_balance(db, to_account_id)
+    new_to_balance = to_balance + amount
 
     credit_entry = LedgerEntry(
         transaction_id=transaction.id,
         account_id=to_account_id,
-        entry_type="credit",
-        amount=amount
+        counterparty_account_id=from_account_id,
+        entry_type=EntryType.credit,
+        amount=amount,
+        running_balance=new_to_balance,
+        description=f"Transfer from A/C {from_account.account_number}"
     )
 
-    db.add(debit_entry)
     db.add(credit_entry)
 
-    db.commit()
+    transaction.status = TransactionStatus.success
 
     return transaction

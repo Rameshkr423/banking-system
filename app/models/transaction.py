@@ -35,7 +35,9 @@ class Transaction(Base):
 
     reference_id = Column(String(100), unique=True, index=True, nullable=False)
 
-    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False, index=True)
+    from_account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True, index=True)
+
+    to_account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True, index=True)
 
     type = Column(String(20), nullable=False)  # or use Enum(TransactionType)
 
