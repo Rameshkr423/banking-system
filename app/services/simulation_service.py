@@ -1,55 +1,81 @@
 import random
 import uuid
-from sqlalchemy.orm import Session
 from decimal import Decimal
+from sqlalchemy.orm import Session
 
 from app.services.user_service import create_user
 from app.services.transaction_service import deposit, transfer
 from app.schemas.user import UserCreate
 
 
-def run_simulation(db: Session, accounts: int, transfers_per_account: int, initial_deposit: int):
+def run_simulation(
+    db: Session,
+    accounts: int,
+    transfers_per_account: int,
+    initial_deposit: int
+):
 
     created_accounts = []
 
-    # Step 1: Create Users + Accounts + Initial Deposit
-    for i in range(accounts):
+    try:
 
-        user_data = UserCreate(
-            full_name=f"Test User {uuid.uuid4().hex[:6]}",
-            email=f"user_{uuid.uuid4().hex[:6]}@test.com",
-            phone=str(random.randint(9000000000, 9999999999))
-        )
+        # -----------------------------------
+        # Step 1: Create Users + Accounts
+        # -----------------------------------
+        for _ in range(accounts):
 
-        result = create_user(db, user_data)
-        account = result["account"]
+            user_data = UserCreate(
+                full_name=f"Test User {uuid.uuid4().hex[:6]}",
+                email=f"user_{uuid.uuid4().hex[:6]}@test.com",
+                phone=str(random.randint(9000000000, 9999999999))
+            )
 
-        deposit(db, account.id, Decimal(initial_deposit))
+            result = create_user(db, user_data)
+            account = result["account"]
 
-        created_accounts.append(account.id)
+            # Initial deposit
+            deposit(db, account.id, Decimal(initial_deposit))
 
-    # Step 2: Random Transfers
-    total_transfers = accounts * transfers_per_account
+            created_accounts.append(account.id)
 
-    for _ in range(total_transfers):
+        # -----------------------------------
+        # Step 2: Random Transfers
+        # -----------------------------------
+        total_transfers = accounts * transfers_per_account
+        executed = 0
 
-        from_acc = random.choice(created_accounts)
-        to_acc = random.choice(created_accounts)
+        while executed < total_transfers:
 
-        if from_acc == to_acc:
-            continue
+            from_acc, to_acc = random.sample(created_accounts, 2)
 
-        amount = Decimal(random.randint(1, 10))
+            amount = Decimal(random.randint(1, 10))
 
-        transfer(
-            db,
-            from_acc,
-            to_acc,
-            amount,
-            idempotency_key=str(uuid.uuid4())
-        )
+            try:
 
-    return {
-        "accounts_created": accounts,
-        "total_transfers": total_transfers
-    }
+                transfer(
+                    db,
+                    from_acc,
+                    to_acc,
+                    amount,
+                    idempotency_key=str(uuid.uuid4())
+                )
+
+                executed += 1
+
+            except Exception:
+                # Ignore failed transfers (ex: insufficient balance)
+                db.rollback()
+
+        # -----------------------------------
+        # Final Commit
+        # -----------------------------------
+        db.commit()
+
+        return {
+            "accounts_created": accounts,
+            "total_transfers": executed
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise e
