@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.schemas.simulation import SimulationRequest
 from app.services.simulation_service import run_simulation
+from app.services.transaction_service import deposit, get_balance, withdraw,transfer
 
 router = APIRouter()
 
