@@ -11,6 +11,8 @@ from app.models.transaction import (
 )
 from app.models.ledger import LedgerEntry, EntryType
 from app.models.account import Account
+from app.models.bank import Bank
+from app.models.branch import Branch
 
 
 # ---------------------------------------------------------
@@ -32,6 +34,35 @@ def get_balance(db: Session, account_id: int) -> Decimal:
     ).scalar()
 
     return balance or Decimal("0.00")
+
+
+# ---------------------------------------------------------
+# Get Account Balance with Bank Details
+# ---------------------------------------------------------
+
+def get_account_balance(db: Session, account_id: int):
+
+    account = (
+        db.query(Account, Bank, Branch)
+        .join(Bank, Bank.id == Account.bank_id)
+        .join(Branch, Branch.id == Account.branch_id)
+        .filter(Account.id == account_id)
+        .first()
+    )
+
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    account_obj, bank, branch = account
+
+    balance = get_balance(db, account_id)
+
+    return {
+        "account_number": account_obj.account_number,
+        "bank_name": bank.bank_name,
+        "branch_name": branch.branch_name,
+        "balance": balance
+    }
 
 
 # ---------------------------------------------------------

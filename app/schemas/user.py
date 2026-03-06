@@ -8,11 +8,11 @@ class UserCreate(BaseModel):
     phone: str
 
     address_line: Optional[str] = None
-    city: Optional[str] = None
     area: Optional[str] = None
     zipcode: Optional[str] = None
-    state: Optional[str] = None
-    country: Optional[str] = "India"
+    city_id: int
+    bank_id: int
+    branch_id: int
 
 
 class UserResponse(BaseModel):
@@ -27,6 +27,8 @@ class UserResponse(BaseModel):
 class AccountResponse(BaseModel):
     account_number: str
     account_type: str
+    bank_name: str
+    branch_name: str
 
     class Config:
         from_attributes = True
@@ -37,6 +39,27 @@ class UserWithAccountResponse(BaseModel):
     full_name: str
     email: str
     phone: str
+
+    account: AccountResponse
+
+    class Config:
+        from_attributes = True
+
+class CityResponse(BaseModel):
+    city_name: str
+    state: str
+    country: str
+
+    class Config:
+        from_attributes = True
+
+
+class UserWithAccountResponse(BaseModel):
+    id: int
+    full_name: str
+    email: str
+    phone: str
+    city: CityResponse
     account: AccountResponse
 
     class Config:
