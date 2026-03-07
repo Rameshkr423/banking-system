@@ -1,6 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from typing import Optional
+from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.session import get_db
+
+from app.schemas.statement import StatementResponse
+from app.services.statement_service import get_statement
 
 from app.schemas.transaction import (
     DepositRequest,
@@ -50,6 +55,29 @@ def deposit_money(request: DepositRequest, db: Session = Depends(get_db)):
 @router.get("/balance/{account_id}", response_model=BalanceResponse)
 def balance(account_id: int, db: Session = Depends(get_db)):
     return {"balance": get_balance(db, account_id)}
+
+
+
+@router.get("/statement/{user_id}", response_model=StatementResponse, summary="Transaction Statement")
+def transaction_statement(
+    user_id: int,
+    account_id: Optional[int] = Query(None, description="Filter by specific account ID"),
+    from_date: Optional[datetime] = Query(None, description="Start date e.g. 2026-01-01T00:00:00"),
+    to_date: Optional[datetime] = Query(None, description="End date e.g. 2026-03-07T23:59:59"),
+    db: Session = Depends(get_db),
+):
+    """
+    Get flat transaction statement for a user.
+    - Filter by account_id, from_date, to_date
+    - Returns all ledger entries + summary (total credit, debit, closing balance)
+    """
+    return get_statement(
+        db=db,
+        user_id=user_id,
+        account_id=account_id,
+        from_date=from_date,
+        to_date=to_date,
+    )
 
 
 # ---------------------------------------------------
