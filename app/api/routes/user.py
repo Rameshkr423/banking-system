@@ -14,14 +14,10 @@ router = APIRouter()
 def search_user(query: str, db: Session = Depends(get_db)):
     return search_users(db, query)
 
+
+# ---------------------------------------------------
+# Register User
+# ---------------------------------------------------
 @router.post("/", response_model=UserWithAccountResponse)
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    result = create_user(db, user)
-
-    return {
-        "id": result["user"].id,
-        "full_name": result["user"].full_name,
-        "email": result["user"].email,
-        "phone": result["user"].phone,
-        "account": result["account"]
-    }
+    return create_user(db, user)   # ✅ return directly

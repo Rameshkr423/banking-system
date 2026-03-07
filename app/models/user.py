@@ -12,13 +12,11 @@ class User(Base):
     full_name = Column(String(150), nullable=False)
     email = Column(String(150), unique=True, index=True, nullable=False)
     phone = Column(String(20), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=True)
 
     # Address details (KYC-ready structure)
     address_line = Column(String(255), nullable=True)
-    city = Column(String(100), nullable=True)
+    city_id = Column(String(100), nullable=True)
     area = Column(String(100), nullable=True)
     zipcode = Column(String(20), nullable=True)
-    state = Column(String(100), nullable=True)
-    country = Column(String(100), nullable=True, default="India")
-
     created_at = Column(DateTime(timezone=True), server_default=func.now())
