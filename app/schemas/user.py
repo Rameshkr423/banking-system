@@ -6,7 +6,7 @@ class UserCreate(BaseModel):
     full_name: str
     email: EmailStr
     phone: str
-
+    password: str
     address_line: Optional[str] = None
     area: Optional[str] = None
     zipcode: Optional[str] = None
@@ -23,7 +23,8 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
-        
+
+
 class AccountResponse(BaseModel):
     account_number: str
     account_type: str
@@ -34,17 +35,6 @@ class AccountResponse(BaseModel):
         from_attributes = True
 
 
-class UserWithAccountResponse(BaseModel):
-    id: int
-    full_name: str
-    email: str
-    phone: str
-
-    account: AccountResponse
-
-    class Config:
-        from_attributes = True
-
 class CityResponse(BaseModel):
     city_name: str
     state: str
@@ -54,7 +44,20 @@ class CityResponse(BaseModel):
         from_attributes = True
 
 
+# ✅ Used for register response (no city needed)
 class UserWithAccountResponse(BaseModel):
+    id: int
+    full_name: str
+    email: str
+    phone: str
+    account: AccountResponse
+
+    class Config:
+        from_attributes = True
+
+
+# ✅ Used for search/profile response (with city from cities table)
+class UserWithCityResponse(BaseModel):
     id: int
     full_name: str
     email: str
