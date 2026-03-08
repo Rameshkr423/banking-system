@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.db.init_db import init_db
 from app.api.routes import simulation
 from app.api.routes import auth
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -12,6 +13,16 @@ app = FastAPI(
 )
 
  
+ # ADD THIS BLOCK right after app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 @app.on_event("startup")
 def on_startup():
     # Initialize database tables (development only)
