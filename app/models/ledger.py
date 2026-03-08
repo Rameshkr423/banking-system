@@ -31,8 +31,11 @@ class LedgerEntry(Base):
 
     account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False, index=True)
 
-    # NEW FIELD (Very Important)
     counterparty_account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True, index=True)
+
+    bank_id = Column(Integer, ForeignKey("banks.id"), nullable=True, index=True)        # ← added
+
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True, index=True)   # ← added
 
     entry_type = Column(Enum(EntryType), nullable=False)
 
@@ -42,7 +45,6 @@ class LedgerEntry(Base):
 
     description = Column(String(255), nullable=True)
 
-    # OPTIONAL (Performance Booster)
     running_balance = Column(Numeric(15, 2), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

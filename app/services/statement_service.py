@@ -54,7 +54,7 @@ def get_statement(
     if to_date:
         query = query.filter(LedgerEntry.created_at <= to_date)
 
-    query = query.order_by(LedgerEntry.created_at.asc())
+    query = query.order_by(LedgerEntry.created_at.desc())
     results = query.all()
 
     entries = []

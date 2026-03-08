@@ -39,13 +39,17 @@ class Transaction(Base):
 
     to_account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True, index=True)
 
-    type = Column(String(20), nullable=False)  # or use Enum(TransactionType)
+    bank_id = Column(Integer, ForeignKey("banks.id"), nullable=True, index=True)       # ← added
+
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True, index=True)  # ← added
+
+    type = Column(String(20), nullable=False)
 
     amount = Column(Numeric(15, 2), nullable=False)
 
     currency = Column(String(10), default="INR")
 
-    status = Column(String(20), default="pending")  # pending / success / failed
+    status = Column(String(20), default="pending")
 
     failure_reason = Column(String(255), nullable=True)
 
