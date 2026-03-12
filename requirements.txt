@@ -8,4 +8,5 @@ google-cloud-pubsub
 google-cloud-logging
 pydantic-settings
 email-validator
-
+pymysql
+cryptography
