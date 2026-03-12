@@ -1,4 +1,4 @@
 project_id  = "banking-system-prod"
 region      = "us-west1"
 zone        = "us-west1-a"
-db_password = "Banking@Secure123"
+db_password = "Banking@Secure$423"
