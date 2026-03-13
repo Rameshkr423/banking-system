@@ -10,3 +10,5 @@ pydantic-settings
 email-validator
 pymysql
 cryptography
+python-jose[cryptography]
+passlib[bcrypt]
