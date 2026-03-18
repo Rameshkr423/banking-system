@@ -27,9 +27,12 @@ module "cloud_run" {
   project_id      = var.project_id
   region          = var.region
   image           = var.api_image
-  db_connection   = module.cloud_sql.connection_name
+
+  cloudsql_connection_name = module.cloud_sql.connection_name
+
   db_password_secret = "banking-db-password"
   jwt_secret         = "banking-jwt-secret"
+
   service_account = "banking-api-sa@${var.project_id}.iam.gserviceaccount.com"
 }
 

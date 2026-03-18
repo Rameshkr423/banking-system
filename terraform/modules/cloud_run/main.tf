@@ -18,22 +18,31 @@
         container_port = 8080
       }
 
+      # ✅ FIX: DB_HOST must be the Cloud SQL connection name (not a socket path).
+      # config.py builds the socket path as:
+      #   ?unix_socket=/cloudsql/{DB_HOST}
+      # So DB_HOST should be just: project:region:instance
       env {
         name  = "DB_HOST"
-        value = var.db_connection
+        value = var.cloudsql_connection_name
       }
+
       env {
         name  = "DB_USER"
         value = "banking_user"
       }
+
       env {
         name  = "DB_NAME"
         value = "bank_db"
       }
+
+      # ✅ FIX: Tell config.py to use the Unix socket path (production mode)
       env {
         name  = "ENV"
         value = "production"
       }
+
       env {
         name = "DB_PASSWORD"
         value_source {
@@ -43,6 +52,7 @@
           }
         }
       }
+
       env {
         name = "SECRET_KEY"
         value_source {
@@ -58,6 +68,19 @@
           cpu    = "1"
           memory = "512Mi"
         }
+      }
+
+      volume_mounts {
+        name       = "cloudsql"
+        mount_path = "/cloudsql"
+      }
+    }
+
+    volumes {
+      name = "cloudsql"
+
+      cloud_sql_instance {
+        instances = [var.cloudsql_connection_name]
       }
     }
   }
