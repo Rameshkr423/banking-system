@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# ← ADD HERE ↓
+def safe_hash(password: str) -> str:
+    # bcrypt silently truncates at 72 bytes; passlib raises instead
+    encoded = password.encode("utf-8")[:72]
+    return pwd_context.hash(encoded.decode("utf-8", errors="ignore"))
 # --------------------------------------------------
 # Static Name/Area/Zipcode Data
 # --------------------------------------------------
@@ -92,7 +97,7 @@ def run_simulation(
 ):
     created_accounts = []
     account_bank_map = {}  # account_id -> (bank_id, branch_id)
-    hashed_password  = pwd_context.hash("12345678")
+    hashed_password = safe_hash("12345678")
 
     try:
         # Step 1: Load master data from DB

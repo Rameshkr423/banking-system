@@ -26,7 +26,9 @@ module "cloud_run" {
   source          = "./modules/cloud_run"
   project_id      = var.project_id
   region          = var.region
-  image           = var.api_image
+  
+  # ── Updated: was image = var.image ────────────────────────
+  image_tag = var.image_tag
 
   cloudsql_connection_name = module.cloud_sql.connection_name
 

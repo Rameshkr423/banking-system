@@ -12,16 +12,13 @@
     }
 
     containers {
-      image = var.image
+      # ── Updated: image tag injected by Cloud Build ($COMMIT_SHA) ──
+      image = "us-west1-docker.pkg.dev/${var.project_id}/banking-repo/banking-api:${var.image_tag}"
 
       ports {
         container_port = 8080
       }
 
-      # ✅ FIX: DB_HOST must be the Cloud SQL connection name (not a socket path).
-      # config.py builds the socket path as:
-      #   ?unix_socket=/cloudsql/{DB_HOST}
-      # So DB_HOST should be just: project:region:instance
       env {
         name  = "DB_HOST"
         value = var.cloudsql_connection_name
@@ -37,7 +34,6 @@
         value = "bank_db"
       }
 
-      # ✅ FIX: Tell config.py to use the Unix socket path (production mode)
       env {
         name  = "ENV"
         value = "production"
@@ -78,7 +74,6 @@
 
     volumes {
       name = "cloudsql"
-
       cloud_sql_instance {
         instances = [var.cloudsql_connection_name]
       }

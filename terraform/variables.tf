@@ -22,3 +22,16 @@ variable "api_image" {
   description = "Docker image for Cloud Run"
   default     = "us-west1-docker.pkg.dev/banking-system-prod/banking-repo/banking-api:latest"
 }
+
+
+variable "image_tag" {
+  description = "Docker image tag from CI/CD (git commit SHA)"
+  type        = string
+  default     = "latest"
+}
+
+variable "subscriber_image_tag" {
+  description = "Subscriber image tag from CI/CD (git commit SHA)"
+  type        = string
+  default     = "latest"
+}

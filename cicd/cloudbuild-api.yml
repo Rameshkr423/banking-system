@@ -1,0 +1,52 @@
+steps:
+  # ── 1. Install dependencies & run tests ───────────────────
+  - name: 'python:3.11-slim'
+    id: 'run-tests'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        pip install -r requirements.txt --quiet
+        python -m pytest app/ -v --tb=short
+
+  # ── 2. Build Docker image ──────────────────────────────────
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    waitFor: ['run-tests']
+    args:
+      - 'build'
+      - '-t'
+      - 'us-west1-docker.pkg.dev/$PROJECT_ID/banking-repo/banking-api:$COMMIT_SHA'
+      - '-t'
+      - 'us-west1-docker.pkg.dev/$PROJECT_ID/banking-repo/banking-api:latest'
+      - '.'
+
+  # ── 3. Push to Artifact Registry ──────────────────────────
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    waitFor: ['build-image']
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-west1-docker.pkg.dev/$PROJECT_ID/banking-repo/banking-api'
+
+  # ── 4. Terraform apply ─────────────────────────────────────
+  - name: 'hashicorp/terraform:1.7'
+    id: 'terraform-apply'
+    waitFor: ['push-image']
+    entrypoint: sh
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform init -input=false -reconfigure
+        terraform apply -auto-approve \
+          -var="project_id=$PROJECT_ID" \
+          -var="image_tag=$COMMIT_SHA"
+
+substitutions:
+  _REGION: us-west1
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'

@@ -1,6 +1,13 @@
-﻿variable "project_id" {}
+﻿
+# ── Add this instead ──────────────────────────────────────
+variable "image_tag" {
+  description = "Docker image tag injected by Cloud Build (git commit SHA)"
+  type        = string
+  default     = "latest"
+}
+
+variable "project_id" {}
 variable "region" {}
-variable "image" {}
 variable "db_password_secret" {}
 variable "jwt_secret" {}
 variable "service_account" {}
