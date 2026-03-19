@@ -39,12 +39,12 @@ steps:
     args:
       - '-c'
       - |
-        cd terraform
         export GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=terraform-sa@$PROJECT_ID.iam.gserviceaccount.com
+        cd terraform
         terraform init -input=false -reconfigure
         terraform apply -auto-approve \
           -var="project_id=$PROJECT_ID" \
-          -var="subscriber_image_tag=$COMMIT_SHA" \
+          -var="image_tag=$COMMIT_SHA" \
           -var="db_password=$$DB_PASSWORD"
     secretEnv: ['DB_PASSWORD']
 
