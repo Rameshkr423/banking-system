@@ -7,6 +7,7 @@ steps:
       - '-c'
       - |
         pip install -r requirements.txt --quiet
+        pip install pytest pytest-asyncio httpx --quiet
         python -m pytest app/ -v --tb=short
 
   # ── 2. Build Docker image ──────────────────────────────────

@@ -4,10 +4,12 @@ steps:
     id: 'run-tests'
     entrypoint: bash
     args:
-      - '-c'
-      - |
-        pip install -r subscriber/requirements.txt --quiet
-        python -m pytest subscriber/ -v --tb=short
+        - '-c'
+        - |
+          pip install -r subscriber/requirements.txt --quiet
+          pip install pytest pytest-asyncio httpx --quiet   # safety net
+          python -m pytest subscriber/ -v --tb=short
+          
 
   # ── 2. Build subscriber Docker image ──────────────────────
   - name: 'gcr.io/cloud-builders/docker'
