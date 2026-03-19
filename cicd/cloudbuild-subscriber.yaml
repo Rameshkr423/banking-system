@@ -11,6 +11,7 @@ steps:
         echo "=== Project ==="
         gcloud config get-value project
 
+
   # ── 1. Install dependencies & run tests ───────────────────
   - name: 'python:3.11-slim'
     id: 'run-tests'
