@@ -7,8 +7,8 @@ steps:
         - '-c'
         - |
           pip install -r subscriber/requirements.txt --quiet
-          pip install pytest pytest-asyncio httpx --quiet   # safety net
-          python -m pytest subscriber/ -v --tb=short
+          pip install pytest pytest-asyncio httpx --quiet
+          python -m pytest subscriber/tests/ -v --tb=short
           
 
   # ── 2. Build subscriber Docker image ──────────────────────

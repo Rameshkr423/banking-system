@@ -8,7 +8,7 @@ steps:
       - |
         pip install -r requirements.txt --quiet
         pip install pytest pytest-asyncio httpx --quiet
-        python -m pytest app/ -v --tb=short
+        python -m pytest app/tests/ -v --tb=short
 
   # ── 2. Build Docker image ──────────────────────────────────
   - name: 'gcr.io/cloud-builders/docker'
