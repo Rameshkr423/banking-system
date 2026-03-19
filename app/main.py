@@ -7,6 +7,8 @@ from app.api.routes import simulation
 from app.api.routes import auth
 from fastapi.middleware.cors import CORSMiddleware
 
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version="1.0.0"
