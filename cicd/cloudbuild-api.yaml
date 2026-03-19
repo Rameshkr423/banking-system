@@ -43,7 +43,14 @@ steps:
         terraform init -input=false -reconfigure
         terraform apply -auto-approve \
           -var="project_id=$PROJECT_ID" \
-          -var="image_tag=$COMMIT_SHA"
+          -var="image_tag=$COMMIT_SHA" \
+          -var="db_password=$$DB_PASSWORD"
+    secretEnv: ['DB_PASSWORD']
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/banking-db-password/versions/latest
+      env: 'DB_PASSWORD'
 
 substitutions:
   _REGION: us-west1

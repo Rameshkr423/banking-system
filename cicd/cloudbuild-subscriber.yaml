@@ -4,12 +4,11 @@ steps:
     id: 'run-tests'
     entrypoint: bash
     args:
-        - '-c'
-        - |
-          pip install -r subscriber/requirements.txt --quiet
-          pip install pytest pytest-asyncio httpx --quiet
-          python -m pytest subscriber/tests/ -v --tb=short
-          
+      - '-c'
+      - |
+        pip install -r subscriber/requirements.txt --quiet
+        pip install pytest pytest-asyncio httpx --quiet
+        python -m pytest subscriber/tests/ -v --tb=short
 
   # ── 2. Build subscriber Docker image ──────────────────────
   - name: 'gcr.io/cloud-builders/docker'
@@ -44,7 +43,14 @@ steps:
         terraform init -input=false -reconfigure
         terraform apply -auto-approve \
           -var="project_id=$PROJECT_ID" \
-          -var="subscriber_image_tag=$COMMIT_SHA"
+          -var="subscriber_image_tag=$COMMIT_SHA" \
+          -var="db_password=$$DB_PASSWORD"
+    secretEnv: ['DB_PASSWORD']
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/banking-db-password/versions/latest
+      env: 'DB_PASSWORD'
 
 options:
   logging: CLOUD_LOGGING_ONLY
