@@ -1,4 +1,16 @@
 steps:
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'debug-sa'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        echo "=== Active SA ==="
+        gcloud auth list
+        echo "=== Project ==="
+        gcloud config get-value project
+
   # ── 1. Install dependencies & run tests ───────────────────
   - name: 'python:3.11-slim'
     id: 'run-tests'
