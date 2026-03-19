@@ -40,6 +40,7 @@ steps:
       - '-c'
       - |
         cd terraform
+        export GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=terraform-sa@$PROJECT_ID.iam.gserviceaccount.com
         terraform init -input=false -reconfigure
         terraform apply -auto-approve \
           -var="project_id=$PROJECT_ID" \
