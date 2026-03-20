@@ -1,17 +1,4 @@
 steps:
-
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    id: 'debug-sa'
-    entrypoint: bash
-    args:
-      - '-c'
-      - |
-        echo "=== Active SA ==="
-        gcloud auth list
-        echo "=== Project ==="
-        gcloud config get-value project
-
-
   # ── 1. Install dependencies & run tests ───────────────────
   - name: 'python:3.11-slim'
     id: 'run-tests'
@@ -44,7 +31,7 @@ steps:
       - '--all-tags'
       - 'us-west1-docker.pkg.dev/$PROJECT_ID/banking-repo/banking-subscriber'
 
-  # ── 4. Terraform apply ─────────────────────────────────────
+  # ── 4. Terraform apply — only updates subscriber image tag ─
   - name: 'hashicorp/terraform:1.7'
     id: 'terraform-apply'
     waitFor: ['push-image']
@@ -56,7 +43,8 @@ steps:
         terraform init -input=false -reconfigure
         terraform apply -auto-approve \
           -var="project_id=$PROJECT_ID" \
-          -var="image_tag=$COMMIT_SHA" \
+          -var="image_tag=latest" \
+          -var="subscriber_image_tag=$COMMIT_SHA" \
           -var="db_password=$$DB_PASSWORD"
     secretEnv: ['DB_PASSWORD']
 
