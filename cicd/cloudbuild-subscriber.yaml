@@ -10,7 +10,7 @@ steps:
         pip install pytest pytest-asyncio httpx --quiet
         python -m pytest subscriber/tests/ -v --tb=short
 
-  # ── 2. Build subscriber Docker image ──────────────────────
+  # ── 2. Build subscriber Docker image ──────────────────────  
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-image'
     waitFor: ['run-tests']
