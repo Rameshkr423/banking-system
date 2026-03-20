@@ -43,7 +43,7 @@ class Settings(BaseSettings):
 
         # NOTE: For production Unix socket, engine is built in session.py
         # using connect_args={"unix_socket": ...} — NOT in the URL string.
-        # PyMySQL ignores unix_socket when passed as a query parameter.
+        # PyMySQL ignores unix_socket when passed as a query parameter..
         if self.ENV == "production":
             return (
                 f"mysql+pymysql://{self.DB_USER}:{password}@/{self.DB_NAME}"
