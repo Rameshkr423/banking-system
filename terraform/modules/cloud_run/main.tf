@@ -12,11 +12,15 @@
     }
 
     containers {
-      # ── Updated: image tag injected by Cloud Build ($COMMIT_SHA) ──
       image = "us-west1-docker.pkg.dev/${var.project_id}/banking-repo/banking-api:${var.image_tag}"
 
       ports {
         container_port = 8080
+      }
+
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = var.project_id
       }
 
       env {
@@ -108,6 +112,16 @@ resource "google_cloud_run_v2_service" "banking_subscriber" {
 
       ports {
         container_port = 8080
+      }
+
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = var.project_id
+      }
+
+      env {
+        name  = "PUBSUB_SUBSCRIPTION"
+        value = "transaction-events-sub"
       }
 
       env {
