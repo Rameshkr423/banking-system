@@ -36,3 +36,5 @@ variable "subscriber_image_tag" {
   default     = "latest"
 }
 
+
+

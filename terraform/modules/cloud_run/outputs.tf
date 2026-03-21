@@ -1,3 +1,9 @@
 ﻿output "api_url" {
   value = google_cloud_run_v2_service.banking_api.uri
 }
+
+
+
+output "subscriber_url" {
+  value = google_cloud_run_v2_service.banking_subscriber.uri
+}

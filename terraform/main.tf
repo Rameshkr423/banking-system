@@ -29,7 +29,8 @@ module "cloud_run" {
   
   # ── Updated: was image = var.image ────────────────────────
   image_tag = var.image_tag
-
+  subscriber_image_tag = var.subscriber_image_tag
+  
   cloudsql_connection_name = module.cloud_sql.connection_name
 
   db_password_secret = "banking-db-password"

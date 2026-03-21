@@ -15,3 +15,9 @@ variable "cloudsql_connection_name" {
   description = "Cloud SQL connection name"
   type        = string
 }
+
+variable "subscriber_image_tag" {
+  description = "Docker image tag for banking-subscriber"
+  type        = string
+  default     = "latest"
+}
