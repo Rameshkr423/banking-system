@@ -9,6 +9,7 @@ from app.models.ledger import LedgerEntry, EntryType
 from app.models.account import Account
 from app.models.bank import Bank
 from app.models.branch import Branch
+from app.events.publisher import publish_transaction_event  # ← ADD THIS IMPORT
 
 
 # ---------------------------------------------------------
@@ -117,7 +118,7 @@ def deposit(
 
     db.add(ledger_entry)
     transaction.status = TransactionStatus.success
-
+    publish_transaction_event(transaction, [ledger_entry])
     return transaction
 
 
@@ -173,7 +174,7 @@ def withdraw(db: Session, account_id: int, amount: Decimal):
 
     db.add(ledger_entry)
     transaction.status = TransactionStatus.success
-
+    publish_transaction_event(transaction, [ledger_entry])
     return transaction
 
 
@@ -280,5 +281,5 @@ def transfer(
     db.add(credit_entry)
 
     transaction.status = TransactionStatus.success
-
+    publish_transaction_event(transaction, [debit_entry, credit_entry])  # ← ADD THIS
     return transaction
