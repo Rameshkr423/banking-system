@@ -30,7 +30,7 @@ steps:
       - 'push'
       - '--all-tags'
       - 'us-west1-docker.pkg.dev/$PROJECT_ID/banking-repo/banking-subscriber'
-
+ 
   # ── 4. Terraform apply — only updates subscriber image tag ─
   - name: 'hashicorp/terraform:1.7'
     id: 'terraform-apply'

@@ -1,5 +1,5 @@
 ﻿resource "google_cloud_run_v2_service" "banking_api" {
-  name     = var.service_name
+  name     = "banking-api"
   location = var.region
   project  = var.project_id
 
@@ -12,10 +12,11 @@
     }
 
     containers {
-      image = "us-west1-docker.pkg.dev/${var.project_id}/banking-repo/${var.service_name}:${var.image_tag}"
+      # ── Updated: image tag injected by Cloud Build ($COMMIT_SHA) ──
+      image = "us-west1-docker.pkg.dev/${var.project_id}/banking-repo/banking-api:${var.image_tag}"
 
       ports {
-        container_port = var.container_port
+        container_port = 8080
       }
 
       env {
