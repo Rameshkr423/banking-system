@@ -10,21 +10,33 @@ logger = get_logger(__name__)
 
 
 class AuditListener:
-    def __init__(self, subscription_id: str = None):  # ← ONLY THIS LINE CHANGED
+    def __init__(self, subscription_id: str = None):
         self.project_id      = os.getenv("GCP_PROJECT_ID", "banking-system-prod")
-        self.subscription_id = subscription_id or os.getenv(  # ← AND THIS LINE
+        self.subscription_id = subscription_id or os.getenv(
             "PUBSUB_SUBSCRIPTION", "transaction-events-sub"
         )
         self.is_running  = False
         self._subscriber = None
 
     async def start(self):
-        self.is_running  = True
+        self.is_running = True
+        logger.info(f"Starting listener for {self.subscription_id}")
+
+        # ── Auto-reconnect loop ───────────────────────────────
+        while self.is_running:
+            try:
+                await self._connect_and_pull()
+            except Exception as e:
+                logger.error(f"Listener crashed: {e} — reconnecting in 5s...")
+                await asyncio.sleep(5)
+
+    async def _connect_and_pull(self):
         self._subscriber = pubsub_v1.SubscriberClient()
         subscription_path = self._subscriber.subscription_path(
             self.project_id, self.subscription_id
         )
         logger.info(f"Listening on {subscription_path}")
+
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, self._pull_messages, subscription_path)
 
@@ -37,6 +49,7 @@ class AuditListener:
         except Exception as e:
             logger.error(f"Subscriber error: {e}")
             streaming_pull.cancel()
+            raise  # ← re-raise so auto-reconnect loop catches it
 
     def _handle_message(self, message):
         try:
