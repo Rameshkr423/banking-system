@@ -12,19 +12,20 @@ from app.models.bank import Bank
 from app.models.branch import Branch
 from app.models.city import City
 from app.services.transaction_service import deposit, transfer
+from app.events.publisher import (           # ← ADD
+    publish_simulation_event,
+    publish_fraud_alert_event,
+)
 
 logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# ← ADD HERE ↓
+FRAUD_AMOUNT_THRESHOLD = 50000  # flag transfers above this
+
 def safe_hash(password: str) -> str:
-    # bcrypt silently truncates at 72 bytes; passlib raises instead
     encoded = password.encode("utf-8")[:72]
     return pwd_context.hash(encoded.decode("utf-8", errors="ignore"))
-# --------------------------------------------------
-# Static Name/Area/Zipcode Data
-# --------------------------------------------------
 
 INDIAN_NAMES = [
     "Arjun Sharma", "Priya Nair", "Karthik Rajan", "Divya Menon", "Rahul Verma",
@@ -55,68 +56,49 @@ DEFAULT_AREAS    = ["Main Street", "Cross Road", "Market Area", "Old Town", "New
 DEFAULT_ZIPCODES = ["500001", "600001", "700001", "800001", "900001"]
 
 
-# --------------------------------------------------
-# Load Master Data from DB
-# --------------------------------------------------
-
 def load_master_data(db: Session):
     try:
-        banks = db.query(Bank).all()
-        logger.info(f"Loaded {len(banks)} banks")
-        if not banks:
-            raise HTTPException(status_code=400, detail="No banks found. Please insert banks first.")
-
+        banks    = db.query(Bank).all()
         branches = db.query(Branch).all()
-        logger.info(f"Loaded {len(branches)} branches")
-        if not branches:
-            raise HTTPException(status_code=400, detail="No branches found. Please insert branches first.")
+        cities   = db.query(City).all()
 
-        cities = db.query(City).all()
-        logger.info(f"Loaded {len(cities)} cities")
+        if not banks:
+            raise HTTPException(status_code=400, detail="No banks found.")
+        if not branches:
+            raise HTTPException(status_code=400, detail="No branches found.")
         if not cities:
-            raise HTTPException(status_code=400, detail="No cities found. Please insert cities first.")
+            raise HTTPException(status_code=400, detail="No cities found.")
 
         return banks, branches, cities
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to load master data: {e}")
         raise HTTPException(status_code=500, detail=f"Master data load failed: {str(e)}")
 
 
-# --------------------------------------------------
-# Main Simulation
-# --------------------------------------------------
+def run_simulation(db: Session, accounts: int,
+                   transfers_per_account: int, initial_deposit: int):
 
-def run_simulation(
-    db: Session,
-    accounts: int,
-    transfers_per_account: int,
-    initial_deposit: int
-):
     created_accounts = []
-    account_bank_map = {}  # account_id -> (bank_id, branch_id)
-    hashed_password = safe_hash("12345678")
+    account_bank_map = {}
+    hashed_password  = safe_hash("12345678")
 
     try:
-        # Step 1: Load master data from DB
         banks, branches, cities = load_master_data(db)
-        logger.info(f"Starting simulation: {accounts} accounts, {transfers_per_account} transfers each, deposit ₹{initial_deposit}")
+        logger.info(f"Simulation start: {accounts} accounts, {transfers_per_account} transfers, ₹{initial_deposit}")
 
-        # Step 2: Create Users + Accounts
+        # ── Step 1: Create users + accounts ──────────────────
         for i in range(accounts):
             try:
                 full_name  = random.choice(INDIAN_NAMES)
                 first_name = full_name.split()[0].lower()
-
-                city      = random.choice(cities)
-                city_name = city.city_name
-                area      = random.choice(AREAS.get(city_name, DEFAULT_AREAS))
-                zipcode   = random.choice(ZIPCODES.get(city_name, DEFAULT_ZIPCODES))
-
-                email = f"{first_name}.{uuid.uuid4().hex[:4]}@gmail.com"
-                phone = str(random.randint(7000000000, 9999999999))
+                city       = random.choice(cities)
+                city_name  = city.city_name
+                area       = random.choice(AREAS.get(city_name, DEFAULT_AREAS))
+                zipcode    = random.choice(ZIPCODES.get(city_name, DEFAULT_ZIPCODES))
+                email      = f"{first_name}.{uuid.uuid4().hex[:4]}@gmail.com"
+                phone      = str(random.randint(7000000000, 9999999999))
 
                 user = User(
                     full_name=full_name,
@@ -130,7 +112,6 @@ def run_simulation(
                 )
                 db.add(user)
                 db.flush()
-                logger.info(f"[{i+1}/{accounts}] Created user: {full_name} (id={user.id})")
 
                 bank   = random.choice(banks)
                 branch = random.choice(branches)
@@ -145,73 +126,73 @@ def run_simulation(
                 )
                 db.add(account)
                 db.flush()
-                logger.info(f"  Account: {account.account_number} | Bank: {bank.bank_name} | Branch: {branch.branch_name}")
 
-                # Store bank/branch mapping for this account
                 account_bank_map[account.id] = (bank.id, branch.id)
 
-                deposit(
-                    db,
-                    account.id,
-                    Decimal(initial_deposit),
-                    bank_id=bank.id,
-                    branch_id=branch.id
-                )
-                logger.info(f"  Deposited ₹{initial_deposit} to account {account.id}")
+                deposit(db, account.id, Decimal(initial_deposit),
+                        bank_id=bank.id, branch_id=branch.id)
 
                 created_accounts.append(account.id)
+                logger.info(f"[{i+1}/{accounts}] Created: {full_name}")
 
             except Exception as e:
-                logger.error(f"Failed to create user/account at index {i}: {e}")
-                raise HTTPException(status_code=500, detail=f"User/account creation failed at index {i}: {str(e)}")
+                logger.error(f"User/account creation failed at {i}: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
 
-        # Step 3: Random Transfers
+        # ── Step 2: Random transfers ──────────────────────────
         total_transfers = accounts * transfers_per_account
-        executed        = 0
-        skipped         = 0
-        max_skips       = total_transfers * 3  # safety limit to avoid infinite loop
-
-        logger.info(f"Starting {total_transfers} transfers...")
+        executed = 0
+        skipped  = 0
+        max_skips = total_transfers * 3
 
         while executed < total_transfers and skipped < max_skips:
             from_acc, to_acc = random.sample(created_accounts, 2)
             amount = Decimal(random.randint(10, 500))
-
             from_bank_id, from_branch_id = account_bank_map[from_acc]
 
             try:
                 savepoint = db.begin_nested()
-
-                transfer(
-                    db,
-                    from_acc,
-                    to_acc,
-                    amount,
+                txn = transfer(
+                    db, from_acc, to_acc, amount,
                     idempotency_key=str(uuid.uuid4()),
                     bank_id=from_bank_id,
-                    branch_id=from_branch_id
+                    branch_id=from_branch_id,
                 )
-
                 savepoint.commit()
                 executed += 1
-                logger.debug(f"Transfer {executed}/{total_transfers}: acc {from_acc} → acc {to_acc} ₹{amount}")
+
+                # ── Fraud alert for large transfers ───────────
+                if float(amount) >= FRAUD_AMOUNT_THRESHOLD:
+                    publish_fraud_alert_event(
+                        transaction_id=txn.id,
+                        account_id=from_acc,
+                        amount=float(amount),
+                        reason=f"Large transfer ₹{amount} exceeds threshold",
+                        transaction_type="transfer",
+                    )
 
             except Exception as e:
                 savepoint.rollback()
                 skipped += 1
-                logger.warning(f"Transfer skipped (acc {from_acc} → {to_acc}, ₹{amount}): {e}")
+                logger.warning(f"Transfer skipped: {e}")
 
-        if skipped >= max_skips:
-            logger.warning(f"Reached max skip limit ({max_skips}). Stopped transfers early.")
-
-        # Step 4: Final Commit
+        # ── Step 3: Final commit ──────────────────────────────
         db.commit()
-        logger.info(f"Simulation complete. Accounts: {accounts}, Executed: {executed}, Skipped: {skipped}")
+
+        # ── Step 4: Publish simulation summary ────────────────
+        publish_simulation_event(
+            accounts_created=accounts,
+            transfers_executed=executed,
+            transfers_skipped=skipped,
+            initial_deposit=initial_deposit,
+        )
+
+        logger.info(f"Simulation done. Accounts={accounts}, Executed={executed}, Skipped={skipped}")
 
         return {
-            "accounts_created": accounts,
+            "accounts_created":   accounts,
             "transfers_executed": executed,
-            "transfers_skipped": skipped,
+            "transfers_skipped":  skipped,
         }
 
     except HTTPException:
@@ -220,4 +201,4 @@ def run_simulation(
     except Exception as e:
         db.rollback()
         logger.error(f"Simulation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Simulation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

@@ -10,19 +10,16 @@ from app.models.branch import Branch
 from app.models.city import City
 from app.utils.account_number import generate_account_number
 from app.core.security import hash_password
+from app.events.publisher import publish_user_registered_event  # ← ADD
 
 
-# -------------------------------------------------------
-# Search Users
-# -------------------------------------------------------
 def search_users(db: Session, query: str):
-
     users = (
         db.query(User, Account, Bank, Branch, City)
         .join(Account, Account.user_id == User.id)
         .join(Bank, Bank.id == Account.bank_id)
         .join(Branch, Branch.id == Account.branch_id)
-        .join(City, City.id == User.city_id)          # ✅ join cities table
+        .join(City, City.id == User.city_id)
         .filter(
             or_(
                 User.full_name.ilike(f"%{query}%"),
@@ -34,7 +31,7 @@ def search_users(db: Session, query: str):
                 Account.account_number.ilike(f"%{query}%"),
                 Bank.bank_name.ilike(f"%{query}%"),
                 Branch.branch_name.ilike(f"%{query}%"),
-                City.city_name.ilike(f"%{query}%"),   # ✅ search by city name
+                City.city_name.ilike(f"%{query}%"),
             )
         )
         .limit(50)
@@ -48,7 +45,7 @@ def search_users(db: Session, query: str):
             "full_name": user.full_name,
             "email": user.email,
             "phone": user.phone,
-            "city": {                                  # ✅ city from cities table
+            "city": {
                 "city_name": city.city_name,
                 "state": city.state,
                 "country": city.country,
@@ -64,12 +61,8 @@ def search_users(db: Session, query: str):
     return result
 
 
-# -------------------------------------------------------
-# Create User
-# -------------------------------------------------------
 def create_user(db: Session, user_data):
     try:
-        # Validate city exists
         city = db.query(City).filter(City.id == user_data.city_id).first()
         if not city:
             raise HTTPException(status_code=404, detail="City not found")
@@ -82,7 +75,7 @@ def create_user(db: Session, user_data):
             address_line=user_data.address_line,
             area=user_data.area,
             zipcode=user_data.zipcode,
-            city_id=user_data.city_id,                # ✅ FK only
+            city_id=user_data.city_id,
         )
 
         db.add(user)
@@ -99,7 +92,7 @@ def create_user(db: Session, user_data):
         db.add(account)
         db.flush()
 
-        bank = db.query(Bank).filter(Bank.id == user_data.bank_id).first()
+        bank   = db.query(Bank).filter(Bank.id == user_data.bank_id).first()
         branch = db.query(Branch).filter(Branch.id == user_data.branch_id).first()
 
         if not bank:
@@ -109,12 +102,23 @@ def create_user(db: Session, user_data):
 
         db.commit()
 
+        # ── Publish user registration event ──────────────────
+        publish_user_registered_event(
+            user_id=user.id,
+            full_name=user.full_name,
+            email=user.email,
+            phone=user.phone,
+            account_number=account.account_number,
+            bank_name=bank.bank_name,
+            branch_name=branch.branch_name,
+        )
+
         return {
             "id": user.id,
             "full_name": user.full_name,
             "email": user.email,
             "phone": user.phone,
-            "account": {                              # ✅ no city in register response
+            "account": {
                 "account_number": account.account_number,
                 "account_type": account.account_type,
                 "bank_name": bank.bank_name,

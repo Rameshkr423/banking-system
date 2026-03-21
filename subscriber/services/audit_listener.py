@@ -12,29 +12,23 @@ logger = get_logger(__name__)
 class AuditListener:
     def __init__(self):
         self.project_id      = os.getenv("GCP_PROJECT_ID", "banking-system-prod")
-        self.subscription_id = os.getenv(
-            "PUBSUB_SUBSCRIPTION",
-            "transaction-events-sub"   # ← matches your existing subscription
-        )
-        self.is_running  = False
-        self._subscriber = None
+        self.subscription_id = os.getenv("PUBSUB_SUBSCRIPTION", "transaction-events-sub")
+        self.is_running      = False
+        self._subscriber     = None
 
     async def start(self):
         self.is_running  = True
         self._subscriber = pubsub_v1.SubscriberClient()
         subscription_path = self._subscriber.subscription_path(
-            self.project_id,
-            self.subscription_id
+            self.project_id, self.subscription_id
         )
         logger.info(f"Listening on {subscription_path}")
-
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, self._pull_messages, subscription_path)
 
     def _pull_messages(self, subscription_path: str):
         streaming_pull = self._subscriber.subscribe(
-            subscription_path,
-            callback=self._handle_message
+            subscription_path, callback=self._handle_message
         )
         try:
             streaming_pull.result()
@@ -46,20 +40,28 @@ class AuditListener:
         try:
             data       = json.loads(message.data.decode("utf-8"))
             event_type = data.get("event_type")
-            logger.info(f"Received: {event_type} | txn={data.get('transaction_id')}")
+            logger.info(f"Received: {event_type}")
 
-            analytics_service    = AnalyticsService()
-            notification_service = NotificationService()
+            analytics    = AnalyticsService()
+            notification = NotificationService()
 
             if event_type == "transaction_completed":
-                # Write to BigQuery
-                analytics_service.record(data)
+                analytics.record_transaction(data)
+                notification.send(data)
 
-                # Send notification
-                notification_service.send(data)
+            elif event_type == "user_registered":
+                analytics.record_user(data)
+                notification.send(data)
+
+            elif event_type == "fraud_alert":
+                analytics.record_fraud(data)
+                notification.send(data)
+
+            elif event_type == "simulation_completed":
+                analytics.record_simulation(data)
 
             message.ack()
-            logger.info(f"Acked: {data.get('transaction_id')}")
+            logger.info(f"Acked: {event_type}")
 
         except Exception as e:
             logger.error(f"Message processing failed: {e}")

@@ -124,6 +124,12 @@ resource "google_cloud_run_v2_service" "banking_subscriber" {
         value = "transaction-events-sub"
       }
 
+      # ── NEW: audit subscription ───────────────────────────
+      env {
+        name  = "AUDIT_SUBSCRIPTION"
+        value = "audit-events-sub"
+      }
+
       env {
         name  = "DB_HOST"
         value = var.cloudsql_connection_name

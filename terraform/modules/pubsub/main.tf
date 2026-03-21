@@ -22,3 +22,18 @@ resource "google_pubsub_subscription" "dataflow_sub" {
   project = var.project_id
   ack_deadline_seconds = 60
 }
+
+
+# ── NEW ───────────────────────────────────────────────────────
+resource "google_pubsub_subscription" "audit_events_sub" {
+  name    = "audit-events-sub"
+  topic   = google_pubsub_topic.audit_events.name
+  project = var.project_id
+
+  ack_deadline_seconds = 60
+
+  retry_policy {
+    minimum_backoff = "10s"
+    maximum_backoff = "600s"
+  }
+}
