@@ -10,11 +10,13 @@ logger = get_logger(__name__)
 
 
 class AuditListener:
-    def __init__(self):
+    def __init__(self, subscription_id: str = None):  # ← ONLY THIS LINE CHANGED
         self.project_id      = os.getenv("GCP_PROJECT_ID", "banking-system-prod")
-        self.subscription_id = os.getenv("PUBSUB_SUBSCRIPTION", "transaction-events-sub")
-        self.is_running      = False
-        self._subscriber     = None
+        self.subscription_id = subscription_id or os.getenv(  # ← AND THIS LINE
+            "PUBSUB_SUBSCRIPTION", "transaction-events-sub"
+        )
+        self.is_running  = False
+        self._subscriber = None
 
     async def start(self):
         self.is_running  = True
@@ -40,7 +42,7 @@ class AuditListener:
         try:
             data       = json.loads(message.data.decode("utf-8"))
             event_type = data.get("event_type")
-            logger.info(f"Received: {event_type}")
+            logger.info(f"Received: {event_type} | sub={self.subscription_id}")
 
             analytics    = AnalyticsService()
             notification = NotificationService()
