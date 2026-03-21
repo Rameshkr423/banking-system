@@ -16,12 +16,7 @@ resource "google_pubsub_subscription" "transaction_sub" {
   project = var.project_id
   ack_deadline_seconds = 60
 }
-resource "google_pubsub_subscription" "dataflow_sub" {
-  name    = "transaction-dataflow-sub"
-  topic   = google_pubsub_topic.transaction_events.name
-  project = var.project_id
-  ack_deadline_seconds = 60
-}
+
 
 
 # ── NEW ───────────────────────────────────────────────────────
