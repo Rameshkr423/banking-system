@@ -39,5 +39,6 @@ variable "subscriber_image_tag" {
 variable "subscriber_url" {
   description = "Banking subscriber Cloud Run URL for Pub/Sub push endpoints"
   type        = string
+  default     = "https://banking-subscriber-336504316457.us-west1.run.app"
 }
 
