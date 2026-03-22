@@ -13,7 +13,7 @@ provider "google" {
   region  = var.region
 }
 
-# ── Cloud SQL ──
+# ── Cloud SQL ──────────────────────────────────────────────────
 module "cloud_sql" {
   source      = "./modules/cloud_sql"
   project_id  = var.project_id
@@ -21,72 +21,43 @@ module "cloud_sql" {
   db_password = var.db_password
 }
 
-# ── Cloud Run ──
+# ── Cloud Run ──────────────────────────────────────────────────
 module "cloud_run" {
-  source          = "./modules/cloud_run"
-  project_id      = var.project_id
-  region          = var.region
-  
-  # ── Updated: was image = var.image ────────────────────────
-  image_tag = var.image_tag
+  source               = "./modules/cloud_run"
+  project_id           = var.project_id
+  region               = var.region
+  image_tag            = var.image_tag
   subscriber_image_tag = var.subscriber_image_tag
-  
   cloudsql_connection_name = module.cloud_sql.connection_name
-
-  db_password_secret = "banking-db-password"
-  jwt_secret         = "banking-jwt-secret"
-
-  service_account = "banking-api-sa@${var.project_id}.iam.gserviceaccount.com"
+  db_password_secret   = "banking-db-password"
+  jwt_secret           = "banking-jwt-secret"
+  service_account      = "banking-api-sa@${var.project_id}.iam.gserviceaccount.com"
 }
 
-# ── Pub/Sub ──
+# ── Pub/Sub ────────────────────────────────────────────────────
+# Topics + Push subscriptions all live inside modules/pubsub/
+# subscriber_url is passed in so the module can build push endpoints
 module "pubsub" {
-  source     = "./modules/pubsub"
-  project_id = var.project_id
+  source         = "./modules/pubsub"
+  project_id     = var.project_id
+  subscriber_url = var.subscriber_url
 }
 
-resource "google_pubsub_subscription" "transaction_sub" {
-  name    = "transaction-events-sub"
-  topic   = google_pubsub_topic.transaction_events.name
-  project = var.project_id
-  ack_deadline_seconds = 60
-
-  push_config {
-    push_endpoint = "${var.subscriber_url}/pubsub/transaction-events"
-  }
-}
-
-resource "google_pubsub_subscription" "audit_events_sub" {
-  name    = "audit-events-sub"
-  topic   = google_pubsub_topic.audit_events.name
-  project = var.project_id
-  ack_deadline_seconds = 60
-
-  push_config {
-    push_endpoint = "${var.subscriber_url}/pubsub/audit-events"
-  }
-
-  retry_policy {
-    minimum_backoff = "10s"
-    maximum_backoff = "600s"
-  }
-}
-
-# ── BigQuery ──
+# ── BigQuery ───────────────────────────────────────────────────
 module "bigquery" {
   source     = "./modules/bigquery"
   project_id = var.project_id
   region     = var.region
 }
 
-# ── Storage ──
+# ── Storage ────────────────────────────────────────────────────
 module "storage" {
   source     = "./modules/storage"
   project_id = var.project_id
   region     = var.region
 }
 
-# ── VM Frontend ──
+# ── VM Frontend ────────────────────────────────────────────────
 module "vm" {
   source     = "./modules/vm"
   project_id = var.project_id
