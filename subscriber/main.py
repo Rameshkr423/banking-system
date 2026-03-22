@@ -1,7 +1,5 @@
 import os
-import asyncio
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from dotenv import load_dotenv
 
 from services.audit_listener import AuditListener
@@ -10,45 +8,50 @@ from utils.logger import get_logger
 load_dotenv()
 logger = get_logger(__name__)
 
-# ── Two listeners — one per subscription ─────────────────────
-txn_listener   = AuditListener(
-    subscription_id=os.getenv("PUBSUB_SUBSCRIPTION", "transaction-events-sub")
-)
-audit_listener = AuditListener(
-    subscription_id=os.getenv("AUDIT_SUBSCRIPTION", "audit-events-sub")
-)
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info("Starting subscriber service...")
-    asyncio.create_task(txn_listener.start())    # transactions
-    asyncio.create_task(audit_listener.start())  # user/fraud/simulation
-    yield
-    logger.info("Shutting down subscriber service...")
-    await txn_listener.stop()
-    await audit_listener.stop()
-
+# One shared listener instance (stateless — just routes messages)
+listener = AuditListener()
 
 app = FastAPI(
     title="Banking Subscriber Service",
-    version="1.0.0",
-    lifespan=lifespan
+    version="2.0.0",
 )
 
 
+# ── Health / Ready ────────────────────────────────────────────
 @app.get("/health")
 async def health():
-    return {
-        "status":  "ok",
-        "service": "banking-subscriber"
-    }
+    return {"status": "ok", "service": "banking-subscriber"}
 
 
 @app.get("/ready")
 async def ready():
-    return {
-        "status":        "ready",
-        "txn_listener":   txn_listener.is_running,
-        "audit_listener": audit_listener.is_running,
-    }
+    return {"status": "ready"}
+
+
+# ── Pub/Sub Push Endpoints ────────────────────────────────────
+
+@app.post("/pubsub/transaction-events")
+async def handle_transaction_events(request: Request):
+    """
+    Pub/Sub push subscription for: transaction_completed events.
+    Subscription: transaction-events-sub  →  push to this URL.
+    HTTP 200 = ack  |  HTTP 500 = nack (Pub/Sub retries)
+    """
+    envelope = await request.json()
+    logger.info("Push received | sub=transaction-events-sub")
+
+    success = listener.handle_push_message(envelope, subscription_id="transaction-events-sub")
+    return Response(status_code=200 if success else 500)
+
+
+@app.post("/pubsub/audit-events")
+async def handle_audit_events(request: Request):
+    """
+    Pub/Sub push subscription for: user_registered, fraud_alert, simulation_completed.
+    Subscription: audit-events-sub  →  push to this URL.
+    """
+    envelope = await request.json()
+    logger.info("Push received | sub=audit-events-sub")
+
+    success = listener.handle_push_message(envelope, subscription_id="audit-events-sub")
+    return Response(status_code=200 if success else 500)

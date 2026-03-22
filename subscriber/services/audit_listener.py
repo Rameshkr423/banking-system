@@ -1,7 +1,5 @@
-import os
 import json
-import asyncio
-from google.cloud import pubsub_v1
+import base64
 from utils.logger import get_logger
 from services.notification_service import NotificationService
 from services.analytics_service import AnalyticsService
@@ -10,52 +8,36 @@ logger = get_logger(__name__)
 
 
 class AuditListener:
-    def __init__(self, subscription_id: str = None):
-        self.project_id      = os.getenv("GCP_PROJECT_ID", "banking-system-prod")
-        self.subscription_id = subscription_id or os.getenv(
-            "PUBSUB_SUBSCRIPTION", "transaction-events-sub"
-        )
-        self.is_running  = False
-        self._subscriber = None
+    """
+    Push-based listener — no streaming pull, no min-instances cost.
+    Pub/Sub POSTs each message to our HTTP endpoint.
+    FastAPI route decodes the envelope and calls handle_push_message().
+    """
 
-    async def start(self):
-        self.is_running = True
-        logger.info(f"Starting listener for {self.subscription_id}")
-
-        # ── Auto-reconnect loop ───────────────────────────────
-        while self.is_running:
-            try:
-                await self._connect_and_pull()
-            except Exception as e:
-                logger.error(f"Listener crashed: {e} — reconnecting in 5s...")
-                await asyncio.sleep(5)
-
-    async def _connect_and_pull(self):
-        self._subscriber = pubsub_v1.SubscriberClient()
-        subscription_path = self._subscriber.subscription_path(
-            self.project_id, self.subscription_id
-        )
-        logger.info(f"Listening on {subscription_path}")
-
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, self._pull_messages, subscription_path)
-
-    def _pull_messages(self, subscription_path: str):
-        streaming_pull = self._subscriber.subscribe(
-            subscription_path, callback=self._handle_message
-        )
+    def handle_push_message(self, envelope: dict, subscription_id: str = "unknown") -> bool:
+        """
+        envelope format from Pub/Sub push:
+        {
+          "message": {
+            "data": "<base64-encoded JSON string>",
+            "messageId": "...",
+            "attributes": {}
+          },
+          "subscription": "projects/.../subscriptions/..."
+        }
+        Returns True  → caller responds HTTP 200 (Pub/Sub acks the message)
+        Returns False → caller responds HTTP 500 (Pub/Sub will retry)
+        """
         try:
-            streaming_pull.result()
-        except Exception as e:
-            logger.error(f"Subscriber error: {e}")
-            streaming_pull.cancel()
-            raise  # ← re-raise so auto-reconnect loop catches it
+            message  = envelope.get("message", {})
+            raw_data = message.get("data", "")
 
-    def _handle_message(self, message):
-        try:
-            data       = json.loads(message.data.decode("utf-8"))
+            # Pub/Sub always base64-encodes the payload
+            decoded    = base64.b64decode(raw_data).decode("utf-8")
+            data       = json.loads(decoded)
             event_type = data.get("event_type")
-            logger.info(f"Received: {event_type} | sub={self.subscription_id}")
+
+            logger.info(f"Received: {event_type} | sub={subscription_id}")
 
             analytics    = AnalyticsService()
             notification = NotificationService()
@@ -75,14 +57,13 @@ class AuditListener:
             elif event_type == "simulation_completed":
                 analytics.record_simulation(data)
 
-            message.ack()
-            logger.info(f"Acked: {event_type}")
+            else:
+                # Unknown event — still ack to avoid poison-pill retries
+                logger.warning(f"Unknown event_type '{event_type}' | sub={subscription_id}")
+
+            logger.info(f"Acked: {event_type} | sub={subscription_id}")
+            return True
 
         except Exception as e:
-            logger.error(f"Message processing failed: {e}")
-            message.nack()
-
-    async def stop(self):
-        self.is_running = False
-        if self._subscriber:
-            self._subscriber.close()
+            logger.error(f"Message processing failed [{subscription_id}]: {e}", exc_info=True)
+            return False  # Pub/Sub will retry after ack deadline
