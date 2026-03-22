@@ -45,6 +45,33 @@ module "pubsub" {
   project_id = var.project_id
 }
 
+resource "google_pubsub_subscription" "transaction_sub" {
+  name    = "transaction-events-sub"
+  topic   = google_pubsub_topic.transaction_events.name
+  project = var.project_id
+  ack_deadline_seconds = 60
+
+  push_config {
+    push_endpoint = "${var.subscriber_url}/pubsub/transaction-events"
+  }
+}
+
+resource "google_pubsub_subscription" "audit_events_sub" {
+  name    = "audit-events-sub"
+  topic   = google_pubsub_topic.audit_events.name
+  project = var.project_id
+  ack_deadline_seconds = 60
+
+  push_config {
+    push_endpoint = "${var.subscriber_url}/pubsub/audit-events"
+  }
+
+  retry_policy {
+    minimum_backoff = "10s"
+    maximum_backoff = "600s"
+  }
+}
+
 # ── BigQuery ──
 module "bigquery" {
   source     = "./modules/bigquery"
